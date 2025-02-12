@@ -1,6 +1,7 @@
 {
   pkgs,
   nixosModules,
+  novaPkg,
 }:
 pkgs.nixosTest {
   name = "OpenStack Cloud Hypervisor driver test";
@@ -12,6 +13,8 @@ pkgs.nixosTest {
         nixosModules.controllerModule
         nixosModules.testModules.testController
       ];
+
+      nova.novaPackage = novaPkg;
     };
 
   nodes.computeVM =
@@ -21,6 +24,8 @@ pkgs.nixosTest {
         nixosModules.computeModule
         nixosModules.testModules.testCompute
       ];
+
+      nova.novaPackage = novaPkg;
     };
 
   testScript =

@@ -25,6 +25,29 @@
         pkgs = import nixpkgs { inherit system; };
         pre-commit-hooks-run = pre-commit-hooks-nix.lib.${system}.run;
         nixosModules = openstack-nix.nixosModules.${system};
+        openstackPackages = openstack-nix.packages.${system};
+        novaSrc = ./.;
+
+        # The PBR setup does not work on the plain source code because no
+        # package version can be determined.
+        # We add a PKG-INFO file with the missing information to make it work.
+        # We use the version info of the original Nova package from
+        # openstack-nix.
+        fixedNovaSrc = pkgs.runCommand "add-package-info" { } ''
+          mkdir -p $out
+
+          cp -r ${novaSrc}/. $out
+
+          cat >$out/PKG-INFO <<EOL
+          Metadata-Version: 2.1
+          Name: nova
+          Version: ${openstackPackages.nova.version}
+          EOL
+        '';
+
+        novaPkg = openstackPackages.nova.overrideAttrs (_: {
+          src = fixedNovaSrc;
+        });
       in
       {
         formatter = pkgs.nixfmt-rfc-style;
@@ -36,7 +59,7 @@
         checks = import ./nix/checks { inherit pkgs pre-commit-hooks-run; };
 
         tests = import ./nix/tests/default.nix {
-          inherit pkgs nixosModules;
+          inherit pkgs nixosModules novaPkg;
         };
       }
     )
