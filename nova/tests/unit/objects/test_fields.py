@@ -246,6 +246,9 @@ class TestHVType(TestField):
     def test_valid_constant(self):
         self.assertTrue(fields.HVType.is_valid(fields.HVType.QEMU))
 
+    def test_valid_chv(self):
+        self.assertTrue(fields.HVType.is_valid('chv'))
+
     def test_valid_docker(self):
         self.assertTrue(fields.HVType.is_valid('docker'))
 

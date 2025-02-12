@@ -40,7 +40,8 @@ class ImageMeta(base.NovaObject):
     # Version 1.6: ImageMetaProps version 1.6
     # Version 1.7: ImageMetaProps version 1.7
     # Version 1.8: ImageMetaProps version 1.8
-    VERSION = '1.8'
+    # Version 1.9: ImageMetaProps version 1.9
+    VERSION = '1.9'
 
     # These are driven by what the image client API returns
     # to Nova from Glance. This is defined in the glance
@@ -197,9 +198,10 @@ class ImageMetaProps(base.NovaObject):
     #                     'hw_maxphysaddr_bits' field
     # Version 1.37: Added 'hw_ephemeral_encryption_secret_uuid' field
     # Version 1.38: Added 'hw_firmware_stateless' field
+    # Version 1.39: Added 'chv' to hypervisor types
     # NOTE(efried): When bumping this version, the version of
     # ImageMetaPropsPayload must also be bumped. See its docstring for details.
-    VERSION = '1.38'
+    VERSION = '1.39'
 
     def obj_make_compatible(self, primitive, target_version):
         super(ImageMetaProps, self).obj_make_compatible(primitive,

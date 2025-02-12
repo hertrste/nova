@@ -24,7 +24,8 @@ class HVSpec(base.NovaObject):
     # Version 1.0: Initial version
     # Version 1.1: Added 'vz' hypervisor
     # Version 1.2: Added 'lxd' hypervisor
-    VERSION = '1.2'
+    # Version 1.3: Added 'chv' hypervisor
+    VERSION = '1.3'
 
     fields = {
         'arch': fields.ArchitectureField(),
