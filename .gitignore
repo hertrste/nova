@@ -56,3 +56,7 @@ releasenotes/build
 # Files created by alembic
 /nova.db
 /nova_api.db
+
+# Nix related ignores
+/result*
+/.nixos-test-history
