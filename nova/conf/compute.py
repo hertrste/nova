@@ -36,6 +36,7 @@ Defines which driver to use for controlling virtualization.
 
 Possible values:
 
+* ``chv.CHVDriver``
 * ``libvirt.LibvirtDriver``
 * ``fake.FakeDriver``
 * ``ironic.IronicDriver``
