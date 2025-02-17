@@ -26,6 +26,8 @@
         pre-commit-hooks-run = pre-commit-hooks-nix.lib.${system}.run;
         nixosModules = openstack-nix.nixosModules.${system};
         openstackPackages = openstack-nix.packages.${system};
+        generateRootwrapConf = openstack-nix.lib.${system}.generateRootwrapConf;
+
         novaSrc = ./.;
 
         # The PBR setup does not work on the plain source code because no
@@ -59,7 +61,12 @@
         checks = import ./nix/checks { inherit pkgs pre-commit-hooks-run; };
 
         tests = import ./nix/tests/default.nix {
-          inherit pkgs nixosModules novaPkg;
+          inherit
+            pkgs
+            nixosModules
+            novaPkg
+            generateRootwrapConf
+            ;
         };
       }
     )

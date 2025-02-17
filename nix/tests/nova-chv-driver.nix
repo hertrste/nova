@@ -2,7 +2,22 @@
   pkgs,
   nixosModules,
   novaPkg,
+  generateRootwrapConf,
 }:
+let
+  nova_env = pkgs.python3.buildEnv.override {
+    extraLibs = [ novaPkg ];
+  };
+  execDirs = pkgs.buildEnv {
+    name = "utils";
+    paths = [ nova_env ];
+  };
+  rootwrapConf = generateRootwrapConf {
+    package = nova_env;
+    filterPath = "/etc/nova/rootwrap.d";
+    execDirs = execDirs;
+  };
+in
 pkgs.nixosTest {
   name = "OpenStack Cloud Hypervisor driver test";
 
@@ -25,7 +40,111 @@ pkgs.nixosTest {
         nixosModules.testModules.testCompute
       ];
 
+      systemd.tmpfiles.settings =
+        let
+          chv-firmware = pkgs.fetchurl {
+            url = "https://github.com/cloud-hypervisor/rust-hypervisor-firmware/releases/download/0.5.0/hypervisor-fw";
+            hash = "sha256-Sgoel3No9rFdIZiiFr3t+aNQv15a4H4p5pU3PsFq2Vg=";
+          };
+        in
+        {
+          "10-chv" = {
+            "/var/lib/nova/hypervisor-fw" = {
+              "L+" = {
+                argument = "${chv-firmware}";
+              };
+            };
+          };
+        };
+
       nova.novaPackage = novaPkg;
+      nova.extraPkgs = [ pkgs.cloud-hypervisor ];
+
+      nova.config = pkgs.writeText "nova.conf" ''
+        [DEFAULT]
+        log_dir = /var/log/nova
+        lock_path = /var/lock/nova
+        state_path = /var/lib/nova
+        rootwrap_config = ${rootwrapConf}
+        compute_driver = chv.CHVDriver
+        my_ip = 10.0.0.39
+        transport_url = rabbit://openstack:openstack@controller
+
+        [api]
+        auth_strategy = keystone
+
+        [api_database]
+        connection = sqlite:////var/lib/nova/nova_api.sqlite
+
+        [database]
+        connection = sqlite:////var/lib/nova/nova.sqlite
+
+        [glance]
+        api_servers = http://controller:9292
+
+        [keystone_authtoken]
+        www_authenticate_uri = http://controller:5000/
+        auth_url = http://controller:5000/
+        memcached_servers = controller:11211
+        auth_type = password
+        project_domain_name = Default
+        user_domain_name = Default
+        project_name = service
+        username = nova
+        password = nova
+
+        [libvirt]
+        virt_type = kvm
+
+        [neutron]
+        auth_url = http://controller:5000
+        auth_type = password
+        project_domain_name = Default
+        user_domain_name = Default
+        region_name = RegionOne
+        project_name = service
+        username = neutron
+        password = neutron
+
+        [os_vif_ovs]
+        ovsdb_connection = unix:/run/openvswitch/db.sock
+
+        [oslo_concurrency]
+        lock_path = /var/lib/nova/tmp
+
+        [placement]
+        region_name = RegionOne
+        project_domain_name = Default
+        project_name = service
+        auth_type = password
+        user_domain_name = Default
+        auth_url = http://controller:5000/v3
+        username = placement
+        password = placement
+
+        [service_user]
+        send_service_user_token = true
+        auth_url = http://controller:5000/
+        auth_strategy = keystone
+        auth_type = password
+        project_domain_name = Default
+        project_name = service
+        user_domain_name = Default
+        username = nova
+        password = nova
+
+        [vnc]
+        enabled = true
+        server_listen = 0.0.0.0
+        server_proxyclient_address = $my_ip
+        novncproxy_base_url = http://controller:6080/vnc_lite.html
+
+        [cells]
+        enable = False
+
+        [os_region_name]
+        openstack =
+      '';
     };
 
   testScript =
@@ -111,6 +230,12 @@ pkgs.nixosTest {
       controllerVM.wait_for_unit("openstack-create-vm.service")
       assert wait_for_openstack_vm()
 
+      # Check that our Cloud Hypervisor driver is loaded and correctly reported
+      hypervisor_list = json.loads(controllerVM.succeed("openstack hypervisor list -f json"))
+      assert hypervisor_list[0]["Hypervisor Type"] == "chv"
+
+      computeVM.succeed("pgrep -f cloud-hypervisor")
+
       vm_state = json.loads(controllerVM.succeed("openstack server show test_vm -f json"))
 
       vm_ip = vm_state["addresses"]["provider"][0]
@@ -122,5 +247,13 @@ pkgs.nixosTest {
       # Ping the OpenStack VM from the controller host. We use the network
       # namespace dedicated for the VM to ping it.
       assert retry_until_succeed(controllerVM, f"ip netns exec {net_ns} ping -c 1 {vm_ip}", 30)
+
+      # Test that deletion and cleanup works as expected
+      controllerVM.succeed("openstack server delete test_vm")
+
+      server_list = json.loads(controllerVM.succeed("openstack server list -f json"))
+      assert len(server_list) == 0
+
+      computeVM.fail("pgrep -f cloud-hypervisor")
     '';
 }
