@@ -23,6 +23,7 @@ from nova.conf import api
 from nova.conf import availability_zone
 from nova.conf import base
 from nova.conf import cache
+from nova.conf import chv
 from nova.conf import cinder
 from nova.conf import compute
 from nova.conf import conductor
@@ -70,6 +71,7 @@ api.register_opts(CONF)
 availability_zone.register_opts(CONF)
 base.register_opts(CONF)
 cache.register_opts(CONF)
+chv.register_opts(CONF)
 cinder.register_opts(CONF)
 compute.register_opts(CONF)
 conductor.register_opts(CONF)

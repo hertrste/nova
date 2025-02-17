@@ -394,6 +394,7 @@ class HVType(BaseNovaEnum):
 
     BAREMETAL = 'baremetal'
     BHYVE = 'bhyve'
+    CHV = 'chv'
     DOCKER = 'docker'
     FAKE = 'fake'
     HYPERV = 'hyperv'
@@ -415,7 +416,7 @@ class HVType(BaseNovaEnum):
     ZVM = 'zvm'
     PRSM = 'prsm'
 
-    ALL = (BAREMETAL, BHYVE, DOCKER, FAKE, HYPERV, IRONIC, KQEMU, KVM, LXC,
+    ALL = (BAREMETAL, BHYVE, CHV, DOCKER, FAKE, HYPERV, IRONIC, KQEMU, KVM, LXC,
            LXD, OPENVZ, PARALLELS, PHYP, QEMU, TEST, UML, VBOX, VIRTUOZZO,
            VMWARE, XEN, ZVM, PRSM)
 
