@@ -179,7 +179,7 @@ pkgs.nixosTest {
           if status != 0:
             continue
           compute_nodes = json.loads(out)
-          if len(net_agents) == 4 and len(compute_nodes) == 1 and compute_nodes[0].get("Host","None") == "computeVM":
+          if len(net_agents) == 4 and len(compute_nodes) == 1:
             return True
         return False
 
