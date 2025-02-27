@@ -57,7 +57,7 @@
           inherit (self.checks.${system}.pre-commit-check) shellHook;
           buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
         };
-
+        packages.nova = novaPkg;
         checks = import ./nix/checks { inherit pkgs pre-commit-hooks-run; };
 
         tests = import ./nix/tests/default.nix {
