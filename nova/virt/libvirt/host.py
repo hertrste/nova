@@ -1243,6 +1243,7 @@ class Host(object):
 
         :returns: an instance of Guest
         """
+        LOG.info(xml)
         domain = self.get_connection().defineXML(xml)
         return libvirt_guest.Guest(domain)
 
