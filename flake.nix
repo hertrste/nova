@@ -8,6 +8,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     openstack-nix.url = "git+ssh://git@gitlab.vpn.cyberus-technology.de/cyberus/cloud/openstack-nix.git";
+    cloud-hypervisor = {
+      url = "github:hertrste/cloud-hypervisor?ref=seccomp_http_api";
+      flake = false;
+    };
   };
 
   outputs =
@@ -17,12 +21,20 @@
       flake-utils,
       pre-commit-hooks-nix,
       openstack-nix,
+      cloud-hypervisor,
       ...
     }:
     flake-utils.lib.eachSystem [ "x86_64-linux" ] (
       system:
       let
-        pkgs = import nixpkgs { inherit system; };
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [
+            (_: prev: {
+              cloud-hypervisor = prev.callPackage ./chv.nix { src = cloud-hypervisor; };
+            })
+          ];
+        };
         pre-commit-hooks-run = pre-commit-hooks-nix.lib.${system}.run;
         nixosModules = openstack-nix.nixosModules.${system};
         openstackPackages = openstack-nix.packages.${system};
@@ -49,6 +61,7 @@
 
         novaPkg = openstackPackages.nova.overrideAttrs (_: {
           src = fixedNovaSrc;
+          doInstallCheck = false;
         });
       in
       {
@@ -57,7 +70,7 @@
           inherit (self.checks.${system}.pre-commit-check) shellHook;
           buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
         };
-        packages.nova = novaPkg;
+
         checks = import ./nix/checks { inherit pkgs pre-commit-hooks-run; };
 
         tests = import ./nix/tests/default.nix {

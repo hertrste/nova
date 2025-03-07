@@ -33,13 +33,16 @@ pkgs.nixosTest {
     };
 
   nodes.computeVM =
-    { ... }:
+    { config, ... }:
     {
       imports = [
         nixosModules.computeModule
         nixosModules.testModules.testCompute
       ];
 
+      systemd.services.virtchd.wantedBy = [ "multi-user.target" ];
+      systemd.services.virtlogd.wantedBy = [ "multi-user.target" ];
+      systemd.services.virtnodedevd.wantedBy = [ "multi-user.target" ];
       systemd.tmpfiles.settings =
         let
           chv-firmware = pkgs.fetchurl {
@@ -54,6 +57,13 @@ pkgs.nixosTest {
                 argument = "${chv-firmware}";
               };
             };
+            "/var/log/libvirt/ch" = {
+              "D" = {
+                user = "root";
+                group = "root";
+                mode = "0755";
+              };
+            };
           };
         };
 
@@ -66,7 +76,7 @@ pkgs.nixosTest {
         lock_path = /var/lock/nova
         state_path = /var/lib/nova
         rootwrap_config = ${rootwrapConf}
-        compute_driver = chv.CHVDriver
+        compute_driver = libvirt.LibvirtDriver
         my_ip = 10.0.0.39
         transport_url = rabbit://openstack:openstack@controller
 
@@ -94,7 +104,8 @@ pkgs.nixosTest {
         password = nova
 
         [libvirt]
-        virt_type = kvm
+        virt_type = ch
+        images_type = raw
 
         [neutron]
         auth_url = http://controller:5000
@@ -231,8 +242,9 @@ pkgs.nixosTest {
       assert wait_for_openstack_vm()
 
       # Check that our Cloud Hypervisor driver is loaded and correctly reported
+      assert retry_until_succeed(controllerVM, "openstack hypervisor list")
       hypervisor_list = json.loads(controllerVM.succeed("openstack hypervisor list -f json"))
-      assert hypervisor_list[0]["Hypervisor Type"] == "chv"
+      assert hypervisor_list[0]["Hypervisor Type"] == "CH"
 
       computeVM.succeed("pgrep -f cloud-hypervisor")
 
@@ -251,6 +263,7 @@ pkgs.nixosTest {
       # Test that deletion and cleanup works as expected
       controllerVM.succeed("openstack server delete test_vm")
 
+      assert retry_until_succeed(controllerVM, "openstack server list")
       server_list = json.loads(controllerVM.succeed("openstack server list -f json"))
       assert len(server_list) == 0
 
