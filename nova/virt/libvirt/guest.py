@@ -844,12 +844,13 @@ class BlockDevice(object):
         # If the job no longer exists, it is because it has completed
         # NOTE(mdbooth): See comment above: it may not have succeeded.
         if status is None:
+            LOG.info('no status')
             return True
 
         # Track blockjob progress in DEBUG, helpful when reviewing failures.
         job_type = LIBVIRT_BLOCK_JOB_TYPE.get(
             status.job, f"Unknown to Nova ({status.job})")
-        LOG.debug("%(job_type)s block job progress, current cursor: %(cur)s "
+        LOG.info("%(job_type)s block job progress, current cursor: %(cur)s "
                   "final cursor: %(end)s",
                   {'job_type': job_type, 'cur': status.cur, 'end': status.end})
 
@@ -857,7 +858,15 @@ class BlockDevice(object):
         # to the new disk once blockjobinfo reports progress as complete.
         if status.cur == status.end:
             disk = self._guest.get_disk(self._disk)
+            LOG.info('cur == end')
+            LOG.info(f"try get disk. self_disk: {self._disk}")
+            if disk:
+                LOG.info("have disk")
+                LOG.info(f"found disk: {disk}")
+                if disk.mirror:
+                    LOG.info(f"disk: {disk.mirror}")
             if disk and disk.mirror:
+                LOG.info(f"ready: {disk.mirror.ready}")
                 return disk.mirror.ready == 'yes'
 
         return False
