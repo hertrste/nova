@@ -11127,6 +11127,24 @@ class LibvirtDriver(driver.ComputeDriver):
                 if volume_secret:
                     bdmi.encryption_secret_uuid = volume_secret.UUIDString()
 
+                LOG.debug(
+                    'Prepared volume BDM info for live migration: '
+                    'serial=%(serial)s volume_id=%(volume_id)s '
+                    'driver_volume_type=%(driver_volume_type)s '
+                    'disk_info=%(disk_info)s connection_format=%(format)s '
+                    'connection_encrypted=%(encrypted)s '
+                    'has_encryption_secret=%(has_secret)s',
+                    {'serial': bdmi.serial,
+                     'volume_id': vol.volume_id,
+                     'driver_volume_type': connection_info.get(
+                         'driver_volume_type'),
+                     'disk_info': disk_info,
+                     'format': connection_info.get('data', {}).get('format'),
+                     'encrypted': connection_info.get(
+                         'data', {}).get('encrypted'),
+                     'has_secret': bool(volume_secret)},
+                    instance=instance)
+
                 migrate_data.bdms.append(bdmi)
 
         if 'dst_numa_info' in migrate_data and migrate_data.dst_numa_info:

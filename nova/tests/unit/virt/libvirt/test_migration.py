@@ -649,6 +649,77 @@ class UtilityMigrationTestCase(test.NoDBTestCase):
                               uuids.encryption_secret_uuid_new)
         self.assertXmlEqual(res, new_xml)
 
+    def test_update_volume_xml_preserves_bdm_format_with_encryption(self):
+        serial = 'd299a078-f0db-4993-bf03-f10fe44fd192'
+        connection_info = {
+            'driver_volume_type': 'iscsi',
+            'serial': serial,
+            'data': {
+                'access_mode': 'rw',
+                'device_path': '/dev/disk/by-path/ip-lun-Z',
+                'encrypted': True,
+                'volume_id': serial,
+            }}
+        bdm = objects.LibvirtLiveMigrateBDMInfo(
+            serial=serial,
+            bus='scsi',
+            type='disk',
+            dev='sdb',
+            format='qcow2',
+            connection_info=connection_info,
+            encryption_secret_uuid=uuids.encryption_secret_uuid_new)
+        data = objects.LibvirtLiveMigrateData(
+            target_connect_addr=None,
+            bdms=[bdm],
+            block_migration=False)
+        xml = """<domain>
+ <devices>
+    <disk type='block' device='disk'>
+      <driver name='qemu' type='qcow2' cache='none'/>
+      <source dev='/dev/disk/by-path/ip-lun-X'/>
+      <target dev='sdb' bus='scsi'/>
+      <serial>%(serial)s</serial>
+      <alias name='scsi0-0-0-1'/>
+      <encryption format='luks'>
+        <secret type='passphrase' uuid='%(old_secret)s'/>
+      </encryption>
+      <address type='drive' controller='0' bus='0' target='0' unit='1'/>
+    </disk>
+ </devices>
+</domain>""" % {'serial': serial,
+                'old_secret': uuids.encryption_secret_uuid_old}
+        expected_xml = xml.replace(
+            '/dev/disk/by-path/ip-lun-X',
+            '/dev/disk/by-path/ip-lun-Z').replace(
+                uuids.encryption_secret_uuid_old,
+                uuids.encryption_secret_uuid_new)
+
+        conf = vconfig.LibvirtConfigGuestDisk()
+        conf.source_device = bdm.type
+        conf.driver_name = "qemu"
+        conf.driver_format = "raw"
+        conf.driver_cache = "none"
+        conf.target_dev = bdm.dev
+        conf.target_bus = bdm.bus
+        conf.serial = bdm.connection_info.get('serial')
+        conf.source_type = "block"
+        conf.source_path = bdm.connection_info['data'].get('device_path')
+        conf.device_addr = vconfig.LibvirtConfigGuestDeviceAddressDrive()
+        conf.device_addr.controller = 0
+
+        get_volume_config = mock.MagicMock(return_value=conf)
+        doc = etree.fromstring(xml)
+        res = etree.tostring(
+            migration._update_volume_xml(
+                doc,
+                data,
+                mock.sentinel.instance,
+                get_volume_config
+            ),
+            encoding='unicode'
+        )
+        self.assertXmlEqual(res, expected_xml)
+
     def test_update_perf_events_xml(self):
         data = objects.LibvirtLiveMigrateData(
             supported_perf_events=['cmt'])

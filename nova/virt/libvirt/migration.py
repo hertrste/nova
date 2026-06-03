@@ -39,6 +39,74 @@ CONF = nova.conf.CONF
 libvirt = None
 
 
+def _disk_xml_summary(disk_dev):
+    driver = disk_dev.find('driver')
+    source = disk_dev.find('source')
+    target = disk_dev.find('target')
+    encryption = disk_dev.find('encryption')
+
+    summary = {
+        'disk_type': disk_dev.get('type'),
+        'disk_device': disk_dev.get('device'),
+        'driver_name': None,
+        'driver_format': None,
+        'driver_cache': None,
+        'source_file': None,
+        'source_dev': None,
+        'source_protocol': None,
+        'source_name': None,
+        'target_dev': None,
+        'target_bus': None,
+        'serial': disk_dev.findtext('serial'),
+        'encryption_format': None,
+        'has_encryption_secret': False,
+    }
+    if driver is not None:
+        summary.update({
+            'driver_name': driver.get('name'),
+            'driver_format': driver.get('type'),
+            'driver_cache': driver.get('cache'),
+        })
+    if source is not None:
+        summary.update({
+            'source_file': source.get('file'),
+            'source_dev': source.get('dev'),
+            'source_protocol': source.get('protocol'),
+            'source_name': source.get('name'),
+        })
+    if target is not None:
+        summary.update({
+            'target_dev': target.get('dev'),
+            'target_bus': target.get('bus'),
+        })
+    if encryption is not None:
+        summary.update({
+            'encryption_format': encryption.get('format'),
+            'has_encryption_secret': encryption.find('secret') is not None,
+        })
+    return summary
+
+
+def _disk_config_summary(conf):
+    return {
+        'disk_type': conf.source_type,
+        'disk_device': conf.source_device,
+        'driver_name': conf.driver_name,
+        'driver_format': conf.driver_format,
+        'driver_cache': conf.driver_cache,
+        'source_path': conf.source_path,
+        'source_protocol': conf.source_protocol,
+        'source_name': conf.source_name,
+        'target_dev': conf.target_dev,
+        'target_bus': conf.target_bus,
+        'serial': conf.serial,
+        'encryption_format': (
+            conf.encryption.format if conf.encryption else None),
+        'has_encryption_secret': bool(
+            conf.encryption and conf.encryption.secret),
+    }
+
+
 def graphics_listen_addrs(migrate_data):
     """Returns listen addresses of vnc/spice from a LibvirtLiveMigrateData"""
     listen_addrs = None
@@ -225,6 +293,40 @@ def _update_volume_xml(xml_doc, migrate_data, instance, get_volume_config):
         conf = get_volume_config(
             instance, bdm_info.connection_info, bdm_info.as_disk_info())
 
+        bdm_format = (
+            bdm_info.format
+            if bdm_info.obj_attr_is_set('format') else None)
+        connection_info = bdm_info.connection_info
+        connection_data = connection_info.get('data', {})
+        LOG.debug(
+            'Updating volume disk XML during live migration: '
+            'source=%(source)s bdm_format=%(bdm_format)s '
+            'connection_format=%(connection_format)s '
+            'driver_volume_type=%(driver_volume_type)s '
+            'connection_encrypted=%(connection_encrypted)s '
+            'generated=%(generated)s',
+            {'source': _disk_xml_summary(disk_dev),
+             'bdm_format': bdm_format,
+             'connection_format': connection_data.get('format'),
+             'driver_volume_type': connection_info.get('driver_volume_type'),
+             'connection_encrypted': connection_data.get('encrypted'),
+             'generated': _disk_config_summary(conf)},
+            instance=instance)
+
+        if bdm_format and conf.driver_format != bdm_format:
+            LOG.info(
+                'Using live migration BDM disk format for volume XML: '
+                'serial=%(serial)s source_driver_format=%(source_format)s '
+                'generated_driver_format=%(generated_format)s '
+                'bdm_format=%(bdm_format)s',
+                {'serial': serial_source,
+                 'source_format': _disk_xml_summary(
+                     disk_dev)['driver_format'],
+                 'generated_format': conf.driver_format,
+                 'bdm_format': bdm_format},
+                instance=instance)
+            conf.driver_format = bdm_format
+
         if bdm_info.obj_attr_is_set('encryption_secret_uuid'):
             conf.encryption = vconfig.LibvirtConfigGuestDiskEncryption()
             conf.encryption.format = 'luks'
@@ -235,6 +337,11 @@ def _update_volume_xml(xml_doc, migrate_data, instance, get_volume_config):
 
         xml_doc2 = etree.XML(conf.to_xml(), parser)
         serial_dest = xml_doc2.findtext('serial')
+
+        LOG.debug(
+            'Generated destination volume disk XML during live migration: '
+            'destination=%(destination)s',
+            {'destination': _disk_xml_summary(xml_doc2)}, instance=instance)
 
         # Compare source serial and destination serial number.
         # If these serial numbers match, continue the process.
