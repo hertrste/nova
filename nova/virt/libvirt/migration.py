@@ -293,11 +293,13 @@ def _update_volume_xml(xml_doc, migrate_data, instance, get_volume_config):
         conf = get_volume_config(
             instance, bdm_info.connection_info, bdm_info.as_disk_info())
 
+        source_summary = _disk_xml_summary(disk_dev)
         bdm_format = (
             bdm_info.format
             if bdm_info.obj_attr_is_set('format') else None)
         connection_info = bdm_info.connection_info
         connection_data = connection_info.get('data', {})
+        connection_format = connection_data.get('format')
         LOG.debug(
             'Updating volume disk XML during live migration: '
             'source=%(source)s bdm_format=%(bdm_format)s '
@@ -305,27 +307,35 @@ def _update_volume_xml(xml_doc, migrate_data, instance, get_volume_config):
             'driver_volume_type=%(driver_volume_type)s '
             'connection_encrypted=%(connection_encrypted)s '
             'generated=%(generated)s',
-            {'source': _disk_xml_summary(disk_dev),
+            {'source': source_summary,
              'bdm_format': bdm_format,
-             'connection_format': connection_data.get('format'),
+             'connection_format': connection_format,
              'driver_volume_type': connection_info.get('driver_volume_type'),
              'connection_encrypted': connection_data.get('encrypted'),
              'generated': _disk_config_summary(conf)},
             instance=instance)
 
-        if bdm_format and conf.driver_format != bdm_format:
+        volume_format = bdm_format or connection_format
+        if (not volume_format and source_summary['encryption_format'] and
+                source_summary['driver_format']):
+            volume_format = source_summary['driver_format']
+
+        if volume_format and conf.driver_format != volume_format:
             LOG.info(
-                'Using live migration BDM disk format for volume XML: '
+                'Using live migration disk format for volume XML: '
                 'serial=%(serial)s source_driver_format=%(source_format)s '
                 'generated_driver_format=%(generated_format)s '
-                'bdm_format=%(bdm_format)s',
+                'bdm_format=%(bdm_format)s '
+                'connection_format=%(connection_format)s '
+                'selected_format=%(selected_format)s',
                 {'serial': serial_source,
-                 'source_format': _disk_xml_summary(
-                     disk_dev)['driver_format'],
+                 'source_format': source_summary['driver_format'],
                  'generated_format': conf.driver_format,
-                 'bdm_format': bdm_format},
+                 'bdm_format': bdm_format,
+                 'connection_format': connection_format,
+                 'selected_format': volume_format},
                 instance=instance)
-            conf.driver_format = bdm_format
+            conf.driver_format = volume_format
 
         if bdm_info.obj_attr_is_set('encryption_secret_uuid'):
             conf.encryption = vconfig.LibvirtConfigGuestDiskEncryption()

@@ -593,7 +593,7 @@ def is_luks_inside_qcow2(image_path: str) -> bool:
               otherwise
     """
     img_info = images.privileged_qemu_img_info(image_path)
-    LOG.warning('XXX: is_luks_inside_qcow2 %s', img_info)
+    LOG.debug('qemu-img info for qcow2/LUKS volume probe: %s', img_info)
     if img_info.format_specific:
         return (
             img_info.file_format == 'qcow2' and

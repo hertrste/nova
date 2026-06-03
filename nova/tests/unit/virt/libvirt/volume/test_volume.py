@@ -361,6 +361,27 @@ class LibvirtVolumeTestCase(LibvirtISCSIVolumeBaseTestCase):
         self.assertEqual('passphrase', secret.attrib['type'])
         self.assertEqual(SECRET_UUID, secret.attrib['uuid'])
 
+    def test_libvirt_volume_driver_encryption_uses_connection_format(self):
+        fake_secret = FakeSecret()
+        fake_host = mock.Mock(spec=host.Host)
+        fake_host.find_secret.return_value = fake_secret
+
+        libvirt_driver = volume.LibvirtVolumeDriver(fake_host)
+        connection_info = {
+            'driver_volume_type': 'fake',
+            'data': {
+                'volume_id': uuids.volume_id,
+                'device_path': '/foo',
+                'format': 'qcow2',
+            },
+            'serial': 'fake_serial',
+        }
+        conf = libvirt_driver.get_config(connection_info, self.disk_info)
+        tree = conf.format_dom()
+
+        self.assertEqual('qcow2', tree.find("driver").attrib['type'])
+        self.assertEqual('luks', tree.find("encryption").attrib['format'])
+
     def test_libvirt_volume_driver_encryption_missing_secret(self):
         fake_host = mock.Mock(spec=host.Host)
         fake_host.find_secret.return_value = None

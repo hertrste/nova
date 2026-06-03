@@ -10858,6 +10858,45 @@ class LibvirtConnTestCase(test.NoDBTestCase,
             'volume', uuids.serial, password=key)
 
     @mock.patch.object(key_manager, 'API')
+    @mock.patch('nova.virt.libvirt.driver.libvirt_utils.'
+                'is_luks_inside_qcow2')
+    @mock.patch('nova.virt.libvirt.driver.luks_encryptor.is_luks')
+    @mock.patch('nova.virt.libvirt.driver.LibvirtDriver._get_volume_encryptor')
+    def test_attach_encryptor_native_luks_marks_qcow2_format(
+            self, mock_get_encryptor, mock_is_luks,
+            mock_is_luks_inside_qcow2, mock_get_key_mgr):
+        drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)
+        encryption = {'provider': 'luks', 'control_location': 'front-end',
+                      'encryption_key_id': uuids.encryption_key_id}
+        connection_info = {
+            'serial': uuids.serial,
+            'data': {'device_path': mock.sentinel.device_path}}
+        key = u'3734363537333734'
+        key_encoded = binascii.unhexlify(key)
+        mock_key = mock.Mock()
+        mock_key_mgr = mock.Mock()
+        mock_get_key_mgr.return_value = mock_key_mgr
+        mock_key_mgr.get.return_value = mock_key
+        mock_key.get_encoded.return_value = key_encoded
+        mock_is_luks.return_value = False
+        mock_is_luks_inside_qcow2.return_value = True
+
+        with mock.patch.object(drvr, '_allow_native_luksv1',
+                               return_value=True):
+            with mock.patch.object(drvr._host, 'create_secret') as crt_scrt:
+                drvr._attach_encryptor(self.context, connection_info,
+                                       encryption)
+
+        mock_is_luks.assert_called_once_with(
+            mock.ANY, mock.sentinel.device_path)
+        mock_is_luks_inside_qcow2.assert_called_once_with(
+            mock.sentinel.device_path)
+        mock_get_encryptor.assert_not_called()
+        self.assertEqual('qcow2', connection_info['data']['format'])
+        crt_scrt.assert_called_once_with(
+            'volume', uuids.serial, password=key)
+
+    @mock.patch.object(key_manager, 'API')
     def test_attach_encryptor_secret_exists(self, mock_key_manager_api):
         connection_info = {'data': {'volume_id': uuids.volume_id}}
         drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), False)

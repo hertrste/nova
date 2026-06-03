@@ -2135,10 +2135,14 @@ class LibvirtDriver(driver.ComputeDriver):
             device_path = connection_info.get('data').get('device_path')
             if device_path:
                 root_helper = utils.get_root_helper()
-                is_luks = (
-                    luks_encryptor.is_luks(root_helper, device_path) or
-                    libvirt_utils.is_luks_inside_qcow2(device_path)
-                )
+                is_luks = luks_encryptor.is_luks(root_helper, device_path)
+                is_luks_inside_qcow2 = False
+                if not is_luks:
+                    is_luks_inside_qcow2 = (
+                        libvirt_utils.is_luks_inside_qcow2(device_path))
+                    is_luks = is_luks_inside_qcow2
+                if is_luks_inside_qcow2:
+                    connection_info['data']['format'] = 'qcow2'
                 if not is_luks:
                     encryptor = self._get_volume_encryptor(connection_info,
                                                            encryption)

@@ -128,6 +128,8 @@ class LibvirtBaseVolumeDriver(object):
             secret.uuid = volume_secret.UUIDString()
             conf.encryption.format = 'luks'
             conf.encryption.secret = secret
+            if data.get('format'):
+                conf.driver_format = data['format']
 
         return conf
 
